@@ -1,0 +1,5 @@
+{
+  "name": "PM Scenario Lab",
+  "description": "An adaptive, multi-modal AI PM training simulator that tests users across single scenarios, high-pressure stakeholder meetings, and end-to-end product lifecycles.",
+  "requestFramePermissions": []
+}
