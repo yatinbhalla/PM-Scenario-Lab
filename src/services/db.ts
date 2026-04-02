@@ -3,7 +3,13 @@ import path from 'path';
 import fs from 'fs';
 import { PastSession } from '../types';
 
-const dbPath = path.resolve(process.cwd(), 'database.sqlite');
+const dataDir = path.resolve(process.cwd(), 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+const dbPath = path.resolve(dataDir, 'database.sqlite');
+console.log(`Initializing database at: ${dbPath}`);
 const db = new Database(dbPath);
 
 // Initialize database
@@ -25,8 +31,10 @@ try {
 }
 
 export function getSessions(userId: string): PastSession[] {
+  console.log(`Fetching sessions for user: ${userId}`);
   const stmt = db.prepare('SELECT * FROM sessions WHERE user_id = ? ORDER BY date DESC');
   const rows = stmt.all(userId) as { id: string, date: string, config: string, evaluation: string }[];
+  console.log(`Found ${rows.length} sessions for user: ${userId}`);
   
   return rows.map(row => ({
     id: row.id,
@@ -37,12 +45,14 @@ export function getSessions(userId: string): PastSession[] {
 }
 
 export function saveSession(userId: string, session: PastSession): void {
+  console.log(`Saving session ${session.id} for user: ${userId}`);
   const stmt = db.prepare('INSERT INTO sessions (id, user_id, date, config, evaluation) VALUES (?, ?, ?, ?, ?)');
-  stmt.run(
+  const result = stmt.run(
     session.id,
     userId,
     session.date,
     JSON.stringify(session.config),
     JSON.stringify(session.evaluation)
   );
+  console.log(`Session saved successfully. Changes: ${result.changes}`);
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { SimulationConfig, Message, EvaluationResult } from '../types';
-import { startSimulationChat, evaluateSession } from '../services/gemini';
-import { Send, Clock, AlertTriangle, CheckCircle2, Loader2, StopCircle, ArrowLeft } from 'lucide-react';
+import { startSimulationChat, evaluateSession, generateHint } from '../services/gemini';
+import { Send, Clock, AlertTriangle, CheckCircle2, Loader2, StopCircle, ArrowLeft, Lightbulb } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -17,34 +17,57 @@ export default function SimulationScreen({ config, onFinish, onCancel }: Simulat
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(true); // Start true while initializing
   const [chat, setChat] = useState<any>(null);
-  const [timeLeft, setTimeLeft] = useState(120); // 2 minutes per turn if time pressure is on
+  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes per turn if time pressure is on
+  const [hasRespondedInTurn, setHasRespondedInTurn] = useState(false);
   const [turnCount, setTurnCount] = useState(0);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
+  const [hintsLeft, setHintsLeft] = useState(2);
+  const [isGettingHint, setIsGettingHint] = useState(false);
+  const [isResolved, setIsResolved] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const maxTurns = config.mode === 'quick_rep' ? 3 : config.mode === 'meeting_room' ? 7 : 15;
+  const maxTurns = config.mode === 'quick_rep' ? (
+    config.difficulty === 'Beginner' ? 10 :
+    config.difficulty === 'Intermediate' ? 15 :
+    config.difficulty === 'Advanced' ? 20 :
+    25 // Expert
+  ) : config.mode === 'meeting_room' ? 7 : 15;
+
+  const isInitializing = useRef(false);
+  const lastConfigId = useRef<string | null>(null);
 
   // Initialize chat
   useEffect(() => {
+    // Create a unique ID for the config to track if it actually changed
+    const configId = JSON.stringify(config);
+    if (lastConfigId.current === configId) return;
+    if (isInitializing.current) return;
+
     const initChat = async () => {
+      isInitializing.current = true;
       try {
-        const newChat = await startSimulationChat(config);
+        console.log("Initializing simulation chat...");
+        const newChat = await startSimulationChat(config, maxTurns);
         setChat(newChat);
+        lastConfigId.current = configId;
         
         // Trigger initial message
         const response = await newChat.sendMessage({ message: "BEGIN SCENARIO" });
         setMessages([{ role: 'model', content: response.text || '', timestamp: Date.now() }]);
         setIsTyping(false);
         setTurnCount(1);
+        setHasRespondedInTurn(false); // Reset for the first turn
       } catch (error) {
         console.error("Failed to initialize chat:", error);
         setMessages([{ role: 'system', content: "Error initializing scenario. Please try again.", timestamp: Date.now() }]);
         setIsTyping(false);
+      } finally {
+        isInitializing.current = false;
       }
     };
     initChat();
-  }, [config]);
+  }, [config, maxTurns]);
 
   // Auto-scroll
   useEffect(() => {
@@ -75,11 +98,29 @@ export default function SimulationScreen({ config, onFinish, onCancel }: Simulat
     const timeUpMsg: Message = { role: 'system', content: "[SYSTEM]: Time expired for this turn. The stakeholders are waiting.", timestamp: Date.now() };
     setMessages(prev => [...prev, timeUpMsg]);
     
+    if (!hasRespondedInTurn) {
+      // If user didn't respond, force a 0 score evaluation
+      onFinish({
+        overallScore: 0,
+        executiveSummary: "No response submitted within the time limit.",
+        yourApproach: "None",
+        idealApproach: "Respond within the time limit.",
+        unreadPolitics: "N/A",
+        alternativeStrategicPaths: [],
+        targetedAreasForImprovement: ["Timeliness of response"],
+        thinkingToInvoke: "Time Management",
+        competencyBreakdown: [{ competency: "Timeliness", score: 0, feedback: "No response submitted." }],
+        actionableNextStep: "Try again with more focus on speed."
+      });
+      return;
+    }
+
     try {
       const response = await chat.sendMessage({ message: "[SYSTEM]: The user ran out of time to respond. React accordingly as the stakeholders." });
       setMessages(prev => [...prev, { role: 'model', content: response.text || '', timestamp: Date.now() }]);
       setTurnCount(prev => prev + 1);
-      setTimeLeft(120);
+      setTimeLeft(300);
+      setHasRespondedInTurn(false);
     } catch (error) {
       console.error(error);
     } finally {
@@ -94,11 +135,25 @@ export default function SimulationScreen({ config, onFinish, onCancel }: Simulat
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
-    setTimeLeft(120);
+    setTimeLeft(300);
+    setHasRespondedInTurn(true);
 
     try {
       const response = await chat.sendMessage({ message: userMsg.content });
-      setMessages(prev => [...prev, { role: 'model', content: response.text || '', timestamp: Date.now() }]);
+      let responseText = response.text || '';
+      
+      if (responseText.includes('[SCENARIO_RESOLVED]')) {
+        responseText = responseText.replace(/\[SCENARIO_RESOLVED\]/g, '').trim();
+        setIsResolved(true);
+        setMessages(prev => [
+          ...prev, 
+          { role: 'model', content: responseText, timestamp: Date.now() },
+          { role: 'system', content: "[SYSTEM]: Scenario successfully resolved early! You can now End & Evaluate.", timestamp: Date.now() }
+        ]);
+      } else {
+        setMessages(prev => [...prev, { role: 'model', content: responseText, timestamp: Date.now() }]);
+      }
+      
       setTurnCount(prev => prev + 1);
     } catch (error) {
       console.error(error);
@@ -108,27 +163,72 @@ export default function SimulationScreen({ config, onFinish, onCancel }: Simulat
     }
   };
 
+  const handleGetHint = async () => {
+    if (hintsLeft <= 0 || isGettingHint || isTyping || isResolved) return;
+    setIsGettingHint(true);
+    try {
+      const historyText = messages.map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n\n');
+      const hint = await generateHint(historyText);
+      setMessages(prev => [...prev, { role: 'system', content: `[SYSTEM HINT]: ${hint}`, timestamp: Date.now() }]);
+      setHintsLeft(prev => prev - 1);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsGettingHint(false);
+    }
+  };
+
   const handleFinish = async () => {
     setIsEvaluating(true);
     try {
+      if (!hasRespondedInTurn && turnCount > 0) {
+        // If user didn't respond to the last prompt and manually ended, force 0 score
+        onFinish({
+          overallScore: 0,
+          executiveSummary: "Simulation ended without a final response.",
+          yourApproach: "None",
+          idealApproach: "Complete the simulation turns.",
+          unreadPolitics: "N/A",
+          alternativeStrategicPaths: [],
+          targetedAreasForImprovement: ["Completion of tasks"],
+          thinkingToInvoke: "Task Completion",
+          competencyBreakdown: [{ competency: "Completion", score: 0, feedback: "Simulation ended prematurely." }],
+          actionableNextStep: "Try to finish the full turn cycle."
+        });
+        return;
+      }
+
       // Compile chat history
       const historyText = messages.map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n\n');
-      const result = await evaluateSession(historyText);
+      const result = await evaluateSession(historyText, turnCount, maxTurns);
       
       // Save session to database
       try {
-        await fetch('/api/sessions', {
+        const sessionId = typeof crypto.randomUUID === 'function' 
+          ? crypto.randomUUID() 
+          : Math.random().toString(36).substring(2) + Date.now().toString(36);
+          
+        console.log(`Attempting to save session ${sessionId} to database...`);
+        const saveResponse = await fetch('/api/sessions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            id: crypto.randomUUID(),
+            id: sessionId,
             date: new Date().toISOString(),
             config,
             evaluation: result
           }),
         });
+        
+        if (!saveResponse.ok) {
+          const errorData = await saveResponse.json();
+          console.error("Server rejected session save:", errorData);
+          throw new Error(errorData.error || "Failed to save session");
+        }
+        
+        console.log("Session saved successfully to database.");
       } catch (dbError) {
         console.error("Failed to save session to database:", dbError);
         // Continue anyway so user sees evaluation
@@ -149,14 +249,17 @@ export default function SimulationScreen({ config, onFinish, onCancel }: Simulat
   };
 
   const renderMessageContent = (content: string) => {
-    // Split by [SYSTEM] and [Internal CoT] to style them differently, render the rest as Markdown
-    const parts = content.split(/(\[SYSTEM\].*?(?=\n|$)|\[Internal CoT\].*?(?=\n|$))/g);
+    // Split by [SYSTEM], [SYSTEM HINT] and [Internal CoT] to style them differently, render the rest as Markdown
+    const parts = content.split(/(\[SYSTEM\].*?(?=\n|$)|\[SYSTEM HINT\].*?(?=\n|$)|\[Internal CoT\].*?(?=\n|$))/g);
     
     return parts.map((part, i) => {
       if (!part.trim()) return null;
 
       if (part.startsWith('[SYSTEM]')) {
         return <div key={i} className="text-rose-400 font-mono text-sm my-3 p-3 bg-rose-950/30 border border-rose-900/50 rounded-lg">{part}</div>;
+      }
+      if (part.startsWith('[SYSTEM HINT]')) {
+        return <div key={i} className="text-amber-400 font-mono text-sm my-3 p-3 bg-amber-950/30 border border-amber-900/50 rounded-lg">{part}</div>;
       }
       if (part.startsWith('[Internal CoT]')) {
         return <div key={i} className="text-neutral-500 italic text-sm my-3 border-l-2 border-neutral-700 pl-3 py-1">{part}</div>;
@@ -183,6 +286,21 @@ export default function SimulationScreen({ config, onFinish, onCancel }: Simulat
         </div>
       );
     });
+  };
+
+  const getStakeholderAvatar = (content: string) => {
+    const match = content.match(/^([^:]+):/);
+    if (match) {
+      const name = match[1].trim();
+      // Use a consistent avatar for the same name
+      return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+    }
+    return null;
+  };
+
+  const getStakeholderName = (content: string) => {
+    const match = content.match(/^([^:]+):/);
+    return match ? match[1].trim() : null;
   };
 
   return (
@@ -227,6 +345,15 @@ export default function SimulationScreen({ config, onFinish, onCancel }: Simulat
         </div>
         
         <div className="flex items-center gap-6">
+          <button
+            onClick={handleGetHint}
+            disabled={hintsLeft <= 0 || isGettingHint || isTyping || isEvaluating || isResolved}
+            className="flex items-center gap-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 disabled:opacity-50 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+          >
+            {isGettingHint ? <Loader2 size={16} className="animate-spin" /> : <Lightbulb size={16} />}
+            Hints {hintsLeft}/2
+          </button>
+
           <div className="flex items-center gap-2 text-sm font-medium text-neutral-300">
             <span className={cn("px-2 py-1 rounded", turnCount >= maxTurns - 1 ? "bg-rose-500/20 text-rose-400" : "bg-neutral-800")}>
               Turn {turnCount} / {maxTurns}
@@ -257,28 +384,55 @@ export default function SimulationScreen({ config, onFinish, onCancel }: Simulat
       {/* Chat Area */}
       <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <AnimatePresence initial={false}>
-          {messages.map((msg, idx) => (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={cn(
-                "flex w-full",
-                msg.role === 'user' ? "justify-end" : "justify-start"
-              )}
-            >
-              <div className={cn(
-                "max-w-[80%] rounded-2xl p-5 leading-relaxed shadow-sm",
-                msg.role === 'user' 
-                  ? "bg-indigo-600 text-white rounded-br-sm" 
-                  : msg.role === 'system'
-                    ? "bg-rose-950/30 border border-rose-900/50 text-rose-200 w-full text-center"
-                    : "bg-neutral-900 border border-neutral-800 text-neutral-300 rounded-bl-sm"
-              )}>
-                {msg.role === 'user' ? msg.content : renderMessageContent(msg.content)}
-              </div>
-            </motion.div>
-          ))}
+            {messages.map((msg, idx) => {
+              const stakeholderAvatar = msg.role === 'model' ? getStakeholderAvatar(msg.content) : null;
+              const stakeholderName = msg.role === 'model' ? getStakeholderName(msg.content) : null;
+
+              return (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={cn(
+                    "flex w-full gap-3",
+                    msg.role === 'user' ? "flex-row-reverse" : "flex-row"
+                  )}
+                >
+                  {/* Avatar */}
+                  {msg.role !== 'system' && (
+                    <div className="flex-none mt-1">
+                      {msg.role === 'user' ? (
+                        <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold">
+                          YOU
+                        </div>
+                      ) : stakeholderAvatar ? (
+                        <img 
+                          src={stakeholderAvatar} 
+                          alt={stakeholderName || 'Stakeholder'} 
+                          className="w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-500 text-xs font-bold">
+                          AI
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className={cn(
+                    "max-w-[80%] rounded-2xl p-5 leading-relaxed shadow-sm",
+                    msg.role === 'user' 
+                      ? "bg-indigo-600 text-white rounded-br-sm" 
+                      : msg.role === 'system'
+                        ? "bg-rose-950/30 border border-rose-900/50 text-rose-200 w-full text-center"
+                        : "bg-neutral-900 border border-neutral-800 text-neutral-300 rounded-bl-sm"
+                  )}>
+                    {msg.role === 'user' ? msg.content : renderMessageContent(msg.content)}
+                  </div>
+                </motion.div>
+              );
+            })}
         </AnimatePresence>
         
         {isTyping && (
@@ -304,14 +458,14 @@ export default function SimulationScreen({ config, onFinish, onCancel }: Simulat
                 handleSend();
               }
             }}
-            placeholder={isTyping ? "Wait for response..." : "Type your decision or response..."}
-            disabled={isTyping || isEvaluating || turnCount > maxTurns}
+            placeholder={isTyping ? "Wait for response..." : isResolved ? "Scenario resolved. Click End & Evaluate." : "Type your decision or response..."}
+            disabled={isTyping || isEvaluating || turnCount > maxTurns || isResolved}
             className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-4 pr-12 py-4 text-white placeholder-neutral-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none disabled:opacity-50 transition-all"
             rows={3}
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim() || isTyping || isEvaluating || turnCount > maxTurns}
+            disabled={!input.trim() || isTyping || isEvaluating || turnCount > maxTurns || isResolved}
             className="absolute right-3 bottom-4 p-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white rounded-lg transition-colors"
           >
             <Send size={18} />

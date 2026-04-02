@@ -1,27 +1,33 @@
 import { Play, TrendingUp, Clock, Target, AlertCircle, Loader2, LogOut, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { PastSession } from '../types';
+import { PastSession, EvaluationResult } from '../types';
 
 interface DashboardProps {
   onStart: () => void;
   user: any;
   onLogout: () => void;
+  onViewPast: (result: EvaluationResult) => void;
 }
 
-export default function Dashboard({ onStart, user, onLogout }: DashboardProps) {
+export default function Dashboard({ onStart, user, onLogout, onViewPast }: DashboardProps) {
   const [pastSessions, setPastSessions] = useState<PastSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchSessions = async () => {
+      console.log("Fetching past sessions...");
       try {
         const response = await fetch('/api/sessions');
         if (response.ok) {
           const data = await response.json();
+          console.log(`Successfully fetched ${data.length} sessions.`);
           setPastSessions(data);
+        } else {
+          const errorData = await response.json();
+          console.error('Failed to fetch sessions from server:', errorData);
         }
       } catch (error) {
-        console.error('Failed to fetch sessions:', error);
+        console.error('Network error while fetching sessions:', error);
       } finally {
         setIsLoading(false);
       }
@@ -91,7 +97,7 @@ export default function Dashboard({ onStart, user, onLogout }: DashboardProps) {
                   </div>
                 ) : (
                   pastSessions.map((session) => (
-                    <div key={session.id} className="flex items-center justify-between p-4 rounded-xl bg-neutral-950/50 border border-neutral-800/50 hover:border-neutral-700 transition-colors">
+                    <button key={session.id} onClick={() => onViewPast(session.evaluation)} className="flex items-center justify-between p-4 rounded-xl bg-neutral-950/50 border border-neutral-800/50 hover:border-neutral-700 transition-colors w-full text-left">
                       <div>
                         <div className="flex items-center gap-3 mb-1">
                           <span className="font-medium text-neutral-200">{session.config.mode.replace('_', ' ').toUpperCase()}</span>
@@ -106,7 +112,7 @@ export default function Dashboard({ onStart, user, onLogout }: DashboardProps) {
                         <div className="text-2xl font-bold text-white">{session.evaluation.overallScore.toFixed(1)}</div>
                         <div className="text-xs text-neutral-500">Overall Score</div>
                       </div>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>

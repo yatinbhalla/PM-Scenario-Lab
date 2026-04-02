@@ -19,9 +19,15 @@ export interface CompetencyScore {
 
 export interface EvaluationResult {
   overallScore: number;
-  scores: CompetencyScore[];
-  summary: string;
-  improvementVectors: string[];
+  executiveSummary: string;
+  yourApproach: string;
+  idealApproach: string;
+  unreadPolitics: string;
+  alternativeStrategicPaths: string[];
+  targetedAreasForImprovement: string[];
+  thinkingToInvoke: string;
+  competencyBreakdown: CompetencyScore[];
+  actionableNextStep: string;
 }
 
 export interface PastSession {

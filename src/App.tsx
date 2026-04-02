@@ -13,6 +13,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenState>('dashboard');
   const [config, setConfig] = useState<SimulationConfig | null>(null);
   const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null);
+  const [selectedPastEvaluation, setSelectedPastEvaluation] = useState<EvaluationResult | null>(null);
   const [user, setUser] = useState<any>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
@@ -54,12 +55,20 @@ export default function App() {
 
   const finishSimulation = (result: EvaluationResult) => {
     setEvaluation(result);
+    setSelectedPastEvaluation(null); // Clear any previously selected past evaluation
+    setCurrentScreen('evaluation');
+  };
+
+  const viewPastEvaluation = (result: EvaluationResult) => {
+    setSelectedPastEvaluation(result);
+    setEvaluation(null); // Clear current simulation evaluation
     setCurrentScreen('evaluation');
   };
 
   const returnToDashboard = () => {
     setConfig(null);
     setEvaluation(null);
+    setSelectedPastEvaluation(null); // Clear selected past evaluation
     setCurrentScreen('dashboard');
   };
 
@@ -77,10 +86,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 font-sans selection:bg-indigo-500/30">
-      {currentScreen === 'dashboard' && <Dashboard onStart={startConfig} user={user} onLogout={handleLogout} />}
+      {currentScreen === 'dashboard' && <Dashboard onStart={startConfig} user={user} onLogout={handleLogout} onViewPast={viewPastEvaluation} />}
       {currentScreen === 'config' && <ConfigScreen onStart={startSimulation} onCancel={returnToDashboard} />}
       {currentScreen === 'simulation' && config && <SimulationScreen config={config} onFinish={finishSimulation} onCancel={returnToDashboard} />}
-      {currentScreen === 'evaluation' && evaluation && <EvaluationScreen result={evaluation} onReturn={returnToDashboard} />}
+      {currentScreen === 'evaluation' && (evaluation || selectedPastEvaluation) && <EvaluationScreen result={evaluation || selectedPastEvaluation!} onReturn={returnToDashboard} />}
     </div>
   );
 }

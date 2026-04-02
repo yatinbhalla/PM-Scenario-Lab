@@ -34,7 +34,7 @@ export default function EvaluationScreen({ result, onReturn }: EvaluationScreenP
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Overall Score & Summary */}
+        {/* Left Column: Overall Score & Executive Summary */}
         <div className="lg:col-span-1 space-y-8">
           <motion.section 
             initial={{ opacity: 0, y: 20 }}
@@ -68,10 +68,13 @@ export default function EvaluationScreen({ result, onReturn }: EvaluationScreenP
               Executive Summary
             </h2>
             <p className="text-neutral-300 leading-relaxed text-sm">
-              {result.summary}
+              {result.executiveSummary}
             </p>
           </motion.section>
+        </div>
 
+        {/* Middle Column: Reality Gap & Hidden Board */}
+        <div className="lg:col-span-1 space-y-8">
           <motion.section 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -79,35 +82,78 @@ export default function EvaluationScreen({ result, onReturn }: EvaluationScreenP
             className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6"
           >
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <TrendingUp size={18} className="text-rose-400" />
-              Improvement Vectors
+              <AlertTriangle size={18} className="text-amber-400" />
+              The Reality Gap
             </h2>
-            <ul className="space-y-3">
-              {result.improvementVectors.map((vector, idx) => (
-                <li key={idx} className="flex gap-3 text-sm text-neutral-300">
-                  <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
-                  <span>{vector}</span>
-                </li>
+            <h3 className="font-semibold text-neutral-200 mb-2">Your Approach:</h3>
+            <p className="text-neutral-300 leading-relaxed text-sm mb-4">
+              {result.yourApproach}
+            </p>
+            <h3 className="font-semibold text-neutral-200 mb-2">The Ideal Approach:</h3>
+            <p className="text-neutral-300 leading-relaxed text-sm">
+              {result.idealApproach}
+            </p>
+          </motion.section>
+
+          <motion.section 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }} 
+            className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6"
+          >
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <CheckCircle size={18} className="text-emerald-400" />
+              The "Hidden Board"
+            </h2>
+            <h3 className="font-semibold text-neutral-200 mb-2">Unread Politics:</h3>
+            <p className="text-neutral-300 leading-relaxed text-sm mb-4">
+              {result.unreadPolitics}
+            </p>
+            <h3 className="font-semibold text-neutral-200 mb-2">Alternative Strategic Paths:</h3>
+            <ul className="list-disc list-inside space-y-1 text-sm text-neutral-300">
+              {result.alternativeStrategicPaths.map((path, idx) => (
+                <li key={idx}>{path}</li>
               ))}
             </ul>
           </motion.section>
         </div>
 
-        {/* Right Column: Competency Breakdown */}
-        <div className="lg:col-span-2">
+        {/* Right Column: Growth Prescription & Competency Breakdown */}
+        <div className="lg:col-span-1 space-y-8">
           <motion.section 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 h-full"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6"
           >
-            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-              <CheckCircle size={20} className="text-emerald-400" />
-              Competency Breakdown
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <TrendingUp size={18} className="text-rose-400" />
+              The Growth Prescription
             </h2>
-            
+            <h3 className="font-semibold text-neutral-200 mb-2">Targeted Areas for Improvement:</h3>
+            <ul className="list-disc list-inside space-y-1 text-sm text-neutral-300 mb-4">
+              {result.targetedAreasForImprovement.map((area, idx) => (
+                <li key={idx}>{area}</li>
+              ))}
+            </ul>
+            <h3 className="font-semibold text-neutral-200 mb-2">Thinking to Invoke:</h3>
+            <p className="text-neutral-300 leading-relaxed text-sm">
+              {result.thinkingToInvoke}
+            </p>
+          </motion.section>
+
+          <motion.section 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6"
+          >
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Target size={18} className="text-indigo-400" />
+              Competency Breakdown (Weakest Dimensions)
+            </h2>
             <div className="space-y-6">
-              {result.scores.map((score, idx) => (
+              {result.competencyBreakdown.map((score, idx) => (
                 <div key={idx} className="border-b border-neutral-800 pb-6 last:border-0 last:pb-0">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-semibold text-neutral-200">{score.competency}</h3>
@@ -115,8 +161,6 @@ export default function EvaluationScreen({ result, onReturn }: EvaluationScreenP
                       {score.score.toFixed(1)} / 10
                     </div>
                   </div>
-                  
-                  {/* Progress Bar */}
                   <div className="h-2 w-full bg-neutral-800 rounded-full mb-3 overflow-hidden">
                     <motion.div 
                       initial={{ width: 0 }}
@@ -125,13 +169,27 @@ export default function EvaluationScreen({ result, onReturn }: EvaluationScreenP
                       className={cn("h-full rounded-full", getScoreBg(score.score).split(' ')[0].replace('/10', ''))}
                     />
                   </div>
-                  
                   <p className="text-sm text-neutral-400 leading-relaxed">
                     {score.feedback}
                   </p>
                 </div>
               ))}
             </div>
+          </motion.section>
+
+          <motion.section 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6"
+          >
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Target size={18} className="text-indigo-400" />
+              Actionable Next Step
+            </h2>
+            <p className="text-neutral-300 leading-relaxed text-sm">
+              {result.actionableNextStep}
+            </p>
           </motion.section>
         </div>
       </div>

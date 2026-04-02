@@ -22,6 +22,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setError('');
 
     try {
+      console.log(`Attempting login for phone: ${phone}`);
       const response = await fetch('/api/auth/phone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -29,9 +30,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       });
 
       if (response.ok) {
+        console.log("Login successful");
         onLoginSuccess();
       } else {
-        throw new Error('Login failed');
+        const errorData = await response.json();
+        console.error("Login failed:", errorData);
+        throw new Error(errorData.error || 'Login failed');
       }
     } catch (err) {
       console.error('Phone login error:', err);
