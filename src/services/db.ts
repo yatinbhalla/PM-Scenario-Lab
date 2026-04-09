@@ -40,7 +40,8 @@ export function getSessions(userId: string): PastSession[] {
     id: row.id,
     date: row.date,
     config: JSON.parse(row.config),
-    evaluation: JSON.parse(row.evaluation)
+    evaluation: JSON.parse(row.evaluation),
+    status: 'completed' as const
   }));
 }
 

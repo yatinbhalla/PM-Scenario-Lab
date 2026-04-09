@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "SimulationConfig": {
+      "title": "SimulationConfig",
+      "description": "Configuration for a simulation session",
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string" },
+        "difficulty": { "type": "string" },
+        "theme": { "type": "string" },
+        "timePressure": { "type": "boolean" },
+        "stakeholders": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["mode", "difficulty", "theme", "timePressure"]
+    },
+    "CompetencyScore": {
+      "title": "CompetencyScore",
+      "description": "Score for a specific competency",
+      "type": "object",
+      "properties": {
+        "competency": { "type": "string" },
+        "score": { "type": "number" },
+        "feedback": { "type": "string" }
+      },
+      "required": ["competency", "score", "feedback"]
+    },
+    "EvaluationResult": {
+      "title": "EvaluationResult",
+      "description": "Result of a simulation evaluation",
+      "type": "object",
+      "properties": {
+        "overallScore": { "type": "number" },
+        "executiveSummary": { "type": "string" },
+        "yourApproach": { "type": "string" },
+        "idealApproach": { "type": "string" },
+        "unreadPolitics": { "type": "string" },
+        "alternativeStrategicPaths": { "type": "array", "items": { "type": "string" } },
+        "targetedAreasForImprovement": { "type": "array", "items": { "type": "string" } },
+        "thinkingToInvoke": { "type": "string" },
+        "competencyBreakdown": { "type": "array", "items": { "$ref": "#/entities/CompetencyScore" } },
+        "actionableNextStep": { "type": "string" }
+      },
+      "required": ["overallScore", "executiveSummary", "yourApproach", "idealApproach", "unreadPolitics", "alternativeStrategicPaths", "targetedAreasForImprovement", "thinkingToInvoke", "competencyBreakdown", "actionableNextStep"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "A simulation session (in-progress or completed)",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "config": { "$ref": "#/entities/SimulationConfig" },
+        "status": { "type": "string", "enum": ["in-progress", "completed"] },
+        "evaluation": { "$ref": "#/entities/EvaluationResult" },
+        "messages": { "type": "array" },
+        "turnCount": { "type": "number" },
+        "timeLeft": { "type": "number" },
+        "geminiHistory": { "type": "array" }
+      },
+      "required": ["userId", "date", "config", "status"]
+    }
+  },
+  "firestore": {
+    "/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/Session" },
+      "description": "Stores completed simulation sessions for users"
+    }
+  }
+}

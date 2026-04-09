@@ -4,8 +4,10 @@ import ConfigScreen from './components/ConfigScreen';
 import SimulationScreen from './components/SimulationScreen';
 import EvaluationScreen from './components/EvaluationScreen';
 import LoginScreen from './components/LoginScreen';
-import { SimulationConfig, EvaluationResult } from './types';
+import { SimulationConfig, EvaluationResult, PastSession } from './types';
 import { Loader2 } from 'lucide-react';
+import { auth, logout } from './firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 
 type ScreenState = 'dashboard' | 'config' | 'simulation' | 'evaluation';
 
@@ -14,42 +16,40 @@ export default function App() {
   const [config, setConfig] = useState<SimulationConfig | null>(null);
   const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null);
   const [selectedPastEvaluation, setSelectedPastEvaluation] = useState<EvaluationResult | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-
-  const fetchUser = async () => {
-    try {
-      const res = await fetch('/api/auth/me');
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-      } else {
-        setUser(null);
-      }
-    } catch (e) {
-      setUser(null);
-    } finally {
-      setIsLoadingAuth(false);
-    }
-  };
+  const [resumeSession, setResumeSession] = useState<PastSession | null>(null);
 
   useEffect(() => {
-    fetchUser();
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsLoadingAuth(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      setUser(null);
+      await logout();
     } catch (e) {
       console.error('Logout failed', e);
     }
   };
 
-  const startConfig = () => setCurrentScreen('config');
+  const startConfig = () => {
+    setResumeSession(null);
+    setCurrentScreen('config');
+  };
   
   const startSimulation = (newConfig: SimulationConfig) => {
     setConfig(newConfig);
+    setResumeSession(null);
+    setCurrentScreen('simulation');
+  };
+
+  const handleResumeSimulation = (session: PastSession) => {
+    setConfig(session.config);
+    setResumeSession(session);
     setCurrentScreen('simulation');
   };
 
@@ -69,6 +69,7 @@ export default function App() {
     setConfig(null);
     setEvaluation(null);
     setSelectedPastEvaluation(null); // Clear selected past evaluation
+    setResumeSession(null);
     setCurrentScreen('dashboard');
   };
 
@@ -81,14 +82,14 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginScreen onLoginSuccess={fetchUser} />;
+    return <LoginScreen onLoginSuccess={() => {}} />;
   }
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 font-sans selection:bg-indigo-500/30">
-      {currentScreen === 'dashboard' && <Dashboard onStart={startConfig} user={user} onLogout={handleLogout} onViewPast={viewPastEvaluation} />}
+      {currentScreen === 'dashboard' && <Dashboard onStart={startConfig} user={user} onLogout={handleLogout} onViewPast={viewPastEvaluation} onResumeSession={handleResumeSimulation} />}
       {currentScreen === 'config' && <ConfigScreen onStart={startSimulation} onCancel={returnToDashboard} />}
-      {currentScreen === 'simulation' && config && <SimulationScreen config={config} onFinish={finishSimulation} onCancel={returnToDashboard} />}
+      {currentScreen === 'simulation' && config && <SimulationScreen config={config} onFinish={finishSimulation} onCancel={returnToDashboard} initialSession={resumeSession} />}
       {currentScreen === 'evaluation' && (evaluation || selectedPastEvaluation) && <EvaluationScreen result={evaluation || selectedPastEvaluation!} onReturn={returnToDashboard} />}
     </div>
   );

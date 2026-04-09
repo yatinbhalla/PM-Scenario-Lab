@@ -4,6 +4,10 @@ import { SimulationConfig, EvaluationResult } from "../types";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export function getSystemInstruction(config: SimulationConfig, maxTurns: number): string {
+  const stakeholdersText = config.stakeholders && config.stakeholders.length > 0 
+    ? `* **Specific Stakeholders Requested:** You MUST include the following roles in the scenario: ${config.stakeholders.join(', ')}.` 
+    : '';
+
   return `You are the "PM Scenario Lab Engine," an advanced AI simulator designed to train Product Managers. Your job is to orchestrate realistic, high-pressure product management scenarios, roleplay as various stakeholders, strictly enforce time and turn limits, and rigorously evaluate the user's performance.
 
 ### 1. CORE SIMULATION RULES
@@ -44,6 +48,7 @@ Format your responses to clearly separate the environment/system from the active
 * Difficulty: ${config.difficulty}
 * Theme Focus: ${config.theme}
 * Time Pressure: ${config.timePressure ? 'ON' : 'OFF'}
+${stakeholdersText}
 
 ### Scenario Generation Rules (The Scaling Matrix):
 Do not just give me an isolated technical bug. You MUST build this scenario using the following exact constraints based on the chosen Difficulty Level:
@@ -66,13 +71,59 @@ Output EXACTLY in this format before we begin the roleplay:
 Start the scenario immediately by describing the context, introducing the stakeholders (with their hidden agendas kept secret from the user), and presenting the initial problem. End your first message with a clear prompt for the user's action.`;
 }
 
-export async function startSimulationChat(config: SimulationConfig, maxTurns: number) {
-  return ai.chats.create({
-    model: "gemini-3.1-pro-preview",
-    config: {
-      systemInstruction: getSystemInstruction(config, maxTurns),
-    },
-  });
+export class GeminiAPIError extends Error {
+  constructor(message: string, public type: 'RATE_LIMIT' | 'INVALID_REQUEST' | 'NETWORK' | 'UNKNOWN') {
+    super(message);
+    this.name = 'GeminiAPIError';
+  }
+}
+
+function handleGeminiError(error: any): never {
+  console.error("Gemini API Error details:", error);
+  const errorMessage = error?.message || String(error);
+  
+  if (errorMessage.includes('429') || errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('rate limit')) {
+    throw new GeminiAPIError("You've hit the rate limit for the AI model. Please wait a moment and try again.", 'RATE_LIMIT');
+  } else if (errorMessage.includes('400') || errorMessage.toLowerCase().includes('invalid')) {
+    throw new GeminiAPIError("The AI model received an invalid request. Please try rephrasing.", 'INVALID_REQUEST');
+  } else if (errorMessage.toLowerCase().includes('fetch') || errorMessage.toLowerCase().includes('network')) {
+    throw new GeminiAPIError("Network error connecting to the AI service. Please check your connection.", 'NETWORK');
+  }
+  
+  throw new GeminiAPIError("An unexpected error occurred with the AI service. Please try again.", 'UNKNOWN');
+}
+
+export async function startSimulationChat(config: SimulationConfig, maxTurns: number, history?: any[]) {
+  try {
+    return ai.chats.create({
+      model: "gemini-3.1-pro-preview",
+      config: {
+        systemInstruction: getSystemInstruction(config, maxTurns),
+        thinkingConfig: { thinkingLevel: 'HIGH' as any },
+      },
+      history: history || []
+    });
+  } catch (error) {
+    handleGeminiError(error);
+  }
+}
+
+export async function startMentorChat(scenarioContext: string) {
+  try {
+    return ai.chats.create({
+      model: "gemini-3.1-pro-preview",
+      config: {
+        systemInstruction: `You are an expert Product Management Mentor. 
+Your goal is to help the user navigate their current PM scenario simulation.
+The user will ask you questions or ask for advice.
+Provide concise, actionable, and insightful advice. Do not give away the exact answer, but guide them to think critically.
+Here is the context of the current simulation they are in:\n\n${scenarioContext}`,
+        temperature: 0.5,
+      }
+    });
+  } catch (error) {
+    handleGeminiError(error);
+  }
 }
 
 export async function validateCustomTheme(theme: string): Promise<boolean> {

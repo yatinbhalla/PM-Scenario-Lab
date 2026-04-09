@@ -17,6 +17,21 @@ export default function ConfigScreen({ onStart, onCancel }: ConfigScreenProps) {
   const [timePressure, setTimePressure] = useState(true);
   const [isValidating, setIsValidating] = useState(false);
   const [themeError, setThemeError] = useState('');
+  const [stakeholders, setStakeholders] = useState<string[]>([]);
+  const [customStakeholder, setCustomStakeholder] = useState('');
+
+  const toggleStakeholder = (role: string) => {
+    setStakeholders(prev => 
+      prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
+    );
+  };
+
+  const addCustomStakeholder = () => {
+    if (customStakeholder.trim() && !stakeholders.includes(customStakeholder.trim())) {
+      setStakeholders([...stakeholders, customStakeholder.trim()]);
+      setCustomStakeholder('');
+    }
+  };
 
   const handleStart = async () => {
     if (theme === 'Custom Theme') {
@@ -37,9 +52,9 @@ export default function ConfigScreen({ onStart, onCancel }: ConfigScreenProps) {
         console.error(e);
       }
       setIsValidating(false);
-      onStart({ mode, difficulty, theme: customTheme as ThemeFocus, timePressure });
+      onStart({ mode, difficulty, theme: customTheme as ThemeFocus, timePressure, stakeholders });
     } else {
-      onStart({ mode, difficulty, theme, timePressure });
+      onStart({ mode, difficulty, theme, timePressure, stakeholders });
     }
   };
 
@@ -119,7 +134,7 @@ export default function ConfigScreen({ onStart, onCancel }: ConfigScreenProps) {
               3. Theme Focus
             </h2>
             <div className="space-y-2">
-              {['AI-Heavy', 'Design Thinking-Heavy', 'Execution-Heavy', 'Data/Metrics-Heavy', 'Strategy-Heavy', 'General Everyday Scenario', 'Custom Theme'].map((t) => (
+              {['AI-Heavy', 'Design Thinking-Heavy', 'Execution-Heavy', 'Data/Metrics-Heavy', 'Strategy-Heavy', 'General Everyday Scenario', 'Critical Thinking', 'Curiosity', 'Creative Thinking', 'Custom Theme'].map((t) => (
                 <button
                   key={t}
                   onClick={() => setTheme(t as ThemeFocus)}
@@ -158,35 +173,78 @@ export default function ConfigScreen({ onStart, onCancel }: ConfigScreenProps) {
           </section>
         </div>
 
-        {/* Modifiers */}
-        <section>
-          <h2 className="text-lg font-semibold text-neutral-200 mb-4 flex items-center gap-2">
-            <Clock size={18} className="text-amber-400" />
-            4. Modifiers
-          </h2>
-          <label className="flex items-center justify-between p-4 rounded-xl bg-neutral-900 border border-neutral-800 cursor-pointer hover:border-neutral-700 transition-colors">
-            <div>
-              <div className="font-medium text-white mb-1">Time Pressure</div>
-              <div className="text-sm text-neutral-400">Applies a strict countdown timer to responses.</div>
+        {/* Modifiers & Stakeholders */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+          <section>
+            <h2 className="text-lg font-semibold text-neutral-200 mb-4 flex items-center gap-2">
+              <Users size={18} className="text-blue-400" />
+              4. Specific Stakeholders (Optional)
+            </h2>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {['CEO', 'Lead Engineer', 'Marketing Manager', 'Sales Director', 'Legal Counsel', 'UX Researcher'].map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => toggleStakeholder(role)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-sm font-medium border transition-colors",
+                      stakeholders.includes(role)
+                        ? "bg-blue-600/20 border-blue-500 text-blue-200"
+                        : "bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700"
+                    )}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="text"
+                  value={customStakeholder}
+                  onChange={(e) => setCustomStakeholder(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addCustomStakeholder()}
+                  placeholder="Add custom role..."
+                  className="flex-1 bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  onClick={addCustomStakeholder}
+                  className="bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Add
+                </button>
+              </div>
             </div>
-            <div className={cn(
-              "w-12 h-6 rounded-full transition-colors relative",
-              timePressure ? "bg-indigo-600" : "bg-neutral-700"
-            )}>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-neutral-200 mb-4 flex items-center gap-2">
+              <Clock size={18} className="text-amber-400" />
+              5. Modifiers
+            </h2>
+            <label className="flex items-center justify-between p-4 rounded-xl bg-neutral-900 border border-neutral-800 cursor-pointer hover:border-neutral-700 transition-colors">
+              <div>
+                <div className="font-medium text-white mb-1">Time Pressure</div>
+                <div className="text-sm text-neutral-400">Applies a strict countdown timer to responses.</div>
+              </div>
               <div className={cn(
-                "absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform",
-                timePressure ? "translate-x-6" : "translate-x-0"
-              )} />
-            </div>
-            {/* Hidden input to make it accessible if needed, but div acts as toggle */}
-            <input
-              type="checkbox"
-              className="hidden"
-              checked={timePressure}
-              onChange={(e) => setTimePressure(e.target.checked)}
-            />
-          </label>
-        </section>
+                "w-12 h-6 rounded-full transition-colors relative",
+                timePressure ? "bg-indigo-600" : "bg-neutral-700"
+              )}>
+                <div className={cn(
+                  "absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform",
+                  timePressure ? "translate-x-6" : "translate-x-0"
+                )} />
+              </div>
+              {/* Hidden input to make it accessible if needed, but div acts as toggle */}
+              <input
+                type="checkbox"
+                className="hidden"
+                checked={timePressure}
+                onChange={(e) => setTimePressure(e.target.checked)}
+              />
+            </label>
+          </section>
+        </div>
 
         {/* Action */}
         <div className="pt-6 border-t border-neutral-800 flex justify-end">
