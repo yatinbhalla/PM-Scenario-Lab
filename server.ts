@@ -12,7 +12,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+let aiClient: GoogleGenAI | null = null;
+function getAI(): GoogleGenAI {
+  if (!aiClient) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      throw new Error('GEMINI_API_KEY environment variable is required');
+    }
+    aiClient = new GoogleGenAI({ apiKey: key });
+  }
+  return aiClient;
+}
 
 async function startServer() {
   const app = express();
@@ -178,7 +189,7 @@ Here is the context of the current simulation they are in:\n\n${config.scenarioC
         temperature = 0.5;
       }
 
-      const chat = ai.chats.create({
+      const chat = getAI().chats.create({
         model: "gemini-3.1-pro-preview",
         config: {
           systemInstruction,
@@ -204,7 +215,7 @@ Here is the context of the current simulation they are in:\n\n${config.scenarioC
   app.post("/api/gemini/validate-theme", async (req, res) => {
     try {
       const { theme } = req.body;
-      const response = await ai.models.generateContent({
+      const response = await getAI().models.generateContent({
         model: "gemini-3-flash-preview",
         contents: `Is the following theme related to Product Management, Tech, Business, or Design? Theme: "${theme}". Answer with only "YES" or "NO".`,
       });
@@ -218,7 +229,7 @@ Here is the context of the current simulation they are in:\n\n${config.scenarioC
   app.post("/api/gemini/generate-hint", async (req, res) => {
     try {
       const { chatHistory } = req.body;
-      const response = await ai.models.generateContent({
+      const response = await getAI().models.generateContent({
         model: "gemini-3.1-pro-preview",
         contents: `Based on the following PM simulation transcript, provide a short, strategic hint for the user on what they should do or say next to handle the stakeholders effectively. Do not give the exact answer, just a guiding principle or a suggested angle.
         
@@ -239,7 +250,7 @@ Here is the context of the current simulation they are in:\n\n${config.scenarioC
   app.post("/api/gemini/evaluate-session", async (req, res) => {
     try {
       const { chatHistory, turnCount, maxTurns } = req.body;
-      const response = await ai.models.generateContent({
+      const response = await getAI().models.generateContent({
         model: "gemini-3.1-pro-preview",
         contents: `Please evaluate the following PM simulation session based on the core competency framework.
         
