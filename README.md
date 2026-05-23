@@ -16,8 +16,10 @@
 
 > 🎯 **8.5/10 average satisfaction score** · validated by **20 beta users** · shipped in **1 weekend**, refined in **1 week**
 
-![PM Scenario Lab — Demo Screenshot](./public/demo-screenshot.png)
-<!-- Replace with actual screenshot or GIF at /public/demo-screenshot.png -->
+**[ Live App ](https://ai.studio/apps/12109808-67c4-4026-8f06-8cb95ee13aea?fullscreenApplet=true)** · **[ Report Issue ](https://github.com/yatinbhalla/PM-Scenario-Lab)** · **[ Author ](https://github.com/yatinbhalla)**
+
+
+> _Demo GIF and screenshots coming soon — open an issue if you'd like to contribute one._
 
 </div>
 
