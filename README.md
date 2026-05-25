@@ -1,4 +1,4 @@
-# PM Scenario Lab 🧠
+# PM Scenario Lab 🧠 
 
 > **Active PM interview training — not passive prep.**
 > An AI-powered simulator that puts you in realistic product management situations, roleplays adversarial stakeholders with hidden agendas via Gemini 2.5 Pro, and delivers a brutally honest 10-dimension competency evaluation at the end.
